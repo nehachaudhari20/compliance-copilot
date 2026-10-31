@@ -40,6 +40,23 @@ def cite_first_sent(monkeypatch, payload_for=None, seen=None):
     monkeypatch.setattr(module.httpx, 'AsyncClient', lambda **kw: original(transport=httpx.MockTransport(respond), **kw))
 
 
+def test_account_signup_and_signin(client):
+    created = client.post('/api/auth/signup', json={
+        'email': 'reviewer@example.com',
+        'password': 'long-enough-secret',
+        'name': 'Asha Rao',
+        'role': 'compliance_officer',
+        'organization': 'demo-org',
+    }).json()
+    assert created['organization'] == 'demo-org'
+    assert created['is_admin'] is True
+    assert created['name'] == 'Asha Rao'
+    assert client.get('/api/app/me', headers={'Authorization': f"Bearer {created['token']}"}).json()['organization'] == 'demo-org'
+    signed_in = client.post('/api/auth/login', json={'email': 'reviewer@example.com', 'password': 'long-enough-secret'}).json()
+    assert signed_in['token']
+    assert signed_in['is_admin'] is True
+
+
 def test_me_reports_organization_and_admin(client):
     assert client.get('/api/app/me').json() == {'organization':'alpha', 'is_admin':False, 'roles':client.get('/api/app/me').json()['roles']}
     assert client.get('/api/app/me', headers=ADMIN).json()['is_admin'] is True

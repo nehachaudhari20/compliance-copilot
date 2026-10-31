@@ -1,6 +1,6 @@
 // Typed client for the Compliance Copilot backend.
-// Every request carries the session's access code; name and role are sent as
-// display values for the audit trail (they are not authentication).
+// Authenticated requests send the session bearer token; name and role headers
+// are display values for the audit trail on AI jobs.
 
 export type Role = 'compliance_officer' | 'legal' | 'risk' | 'executive';
 
@@ -186,7 +186,7 @@ async function request(path: string, init: RequestInit = {}, token = current?.to
     } catch {
       if (raw.trim()) message = raw.slice(0, 300);
     }
-    if (response.status === 401) message = 'That access code was not recognised. Check it with your administrator.';
+    if (response.status === 401) message = 'Sign in again to continue.';
     throw new ApiError(message, response.status);
   }
   return response;
@@ -195,7 +195,19 @@ async function request(path: string, init: RequestInit = {}, token = current?.to
 const json = async <T>(path: string, init?: RequestInit, token?: string) => (await request(path, init, token)).json() as Promise<T>;
 const post = (body: unknown): RequestInit => ({ method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
 
+export interface AuthSession {
+  token: string;
+  organization: string;
+  is_admin: boolean;
+  name: string;
+  role: Role;
+  roles: Record<Role, string>;
+}
+
 export const api = {
+  signUp: (body: { email: string; password: string; name: string; role: Role; organization: string }) =>
+    json<AuthSession>('/api/auth/signup', post(body)),
+  signIn: (body: { email: string; password: string }) => json<AuthSession>('/api/auth/login', post(body)),
   me: (token: string) => json<{ organization: string; is_admin: boolean; roles: Record<Role, string> }>('/api/app/me', {}, token),
   library: () => json<Library>('/api/app/library'),
   upload: (file: File, metadata: Record<string, unknown>) => {

@@ -1,8 +1,7 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { setApiSession, type Role, type Session } from './lib/api';
 
-// The session lives in sessionStorage: it survives reloads but not closing the
-// browser, and the access code is never written to long-lived storage.
+// The session lives in sessionStorage: it survives reloads but not closing the browser.
 const KEY = 'compliance-copilot-session';
 
 export const ROLE_LABELS: Record<Role, string> = {

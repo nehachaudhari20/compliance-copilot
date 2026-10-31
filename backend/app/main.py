@@ -1,5 +1,4 @@
 import difflib
-import hmac
 import json
 import os
 import threading
@@ -12,6 +11,8 @@ from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from .auth import install as install_auth
+from .auth import resolve_bearer
 from .compare import diff_hunks, order_versions, page_lines, stored_pages
 from .importer import fetch_pdf
 from .index_cli import synchronize
@@ -136,14 +137,12 @@ def create_app(db_path=None):
     token_config()  # Fail at startup, not per request, on malformed token JSON.
 
     def principal(authorization: str = Header(default='')):
-        # Server-side token mapping: clients cannot choose another organization's scope.
-        org_tokens, admin_tokens = token_config()
-        token = authorization.removeprefix('Bearer ')
-        for tokens, is_admin in ((admin_tokens, True), (org_tokens, False)):
-            for org, expected in tokens.items():
-                if expected and hmac.compare_digest(token, expected):
-                    return Principal(org, is_admin)
-        raise HTTPException(401, 'Configure COPILOT_ORG_TOKENS and supply your organization bearer token')
+        token = authorization.removeprefix('Bearer ').strip()
+        resolved = resolve_bearer(token, token_config)
+        if resolved:
+            org, is_admin, _user_id = resolved
+            return Principal(org, is_admin)
+        raise HTTPException(401, 'Sign in to continue')
 
     def organization(user: Principal = Depends(principal)):
         return user.org
@@ -288,6 +287,7 @@ def create_app(db_path=None):
         except RuntimeError as exc:
             raise HTTPException(503, str(exc)) from exc
 
+    install_auth(app)
     install_product_api(app, principal)
     return app
 
