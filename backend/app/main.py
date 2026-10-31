@@ -176,16 +176,26 @@ def create_app(db_path=None):
     def retrieval_status(org=Depends(organization)):
         return app.state.retrieval.status(org)
 
-    @app.get('/', include_in_schema=False)
-    def home():
-        # The client-facing app when it has been built; otherwise the developer console.
-        return FileResponse(APP_INDEX if APP_INDEX.exists() else FRONTEND_INDEX)
+    assets_dir = APP_INDEX.parent / 'assets'
+    if APP_INDEX.exists() and assets_dir.is_dir():
+        # Monolithic local deploy: FastAPI serves the built Vite app from frontend/app/dist.
+        @app.get('/', include_in_schema=False)
+        def home():
+            return FileResponse(APP_INDEX)
 
-    @app.get('/console', include_in_schema=False)
-    def console():
-        return FileResponse(FRONTEND_INDEX)
+        @app.get('/console', include_in_schema=False)
+        def console():
+            return FileResponse(FRONTEND_INDEX if FRONTEND_INDEX.exists() else APP_INDEX)
 
-    app.mount('/assets', StaticFiles(directory=APP_INDEX.parent / 'assets', check_dir=False), name='app-assets')
+        app.mount('/assets', StaticFiles(directory=assets_dir), name='app-assets')
+    elif FRONTEND_INDEX.exists():
+        @app.get('/', include_in_schema=False)
+        def home():
+            return FileResponse(FRONTEND_INDEX)
+
+        @app.get('/console', include_in_schema=False)
+        def console():
+            return FileResponse(FRONTEND_INDEX)
 
     @app.get('/api/documents')
     def documents(org=Depends(organization)):

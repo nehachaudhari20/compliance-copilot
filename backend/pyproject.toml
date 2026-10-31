@@ -4,4 +4,7 @@ version = "1.0.0"
 requires-python = ">=3.10"
 
 [tool.vercel]
-entrypoint = "app.main:app"
+entrypoint = "app.asgi:app"
+
+[tool.vercel.fastapi.static]
+exclude = true
