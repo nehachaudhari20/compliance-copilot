@@ -1,7 +1,9 @@
 import { useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useLoad } from '../hooks';
+import { DemoNotice } from '../components/DemoNotice';
 import { api, type AuditEntry } from '../lib/api';
+import { getDemoAuditEntry, isDemoAuditId, mergeAuditEntries } from '../lib/demo';
 import { formatDateTime } from '../lib/library';
 import { AnswerView } from '../components/Results';
 import { duration, Empty, ErrorNote, PageHead } from '../components/ui';
@@ -18,7 +20,10 @@ function Status({ entry }: { entry: AuditEntry }) {
 }
 
 function Record({ id, onClose }: { id: string; onClose: () => void }) {
-  const { data, error } = useLoad(() => api.auditEntry(id), [id]);
+  const { data, error } = useLoad(
+    () => (isDemoAuditId(id) ? Promise.resolve(getDemoAuditEntry(id)!) : api.auditEntry(id)),
+    [id],
+  );
   const top = useRef<HTMLElement>(null);
   useEffect(() => top.current?.scrollIntoView({ block: 'start', behavior: 'smooth' }), [id]);
   return (
@@ -50,18 +55,19 @@ function Record({ id, onClose }: { id: string; onClose: () => void }) {
 
 export function Audit() {
   const [params, setParams] = useSearchParams();
-  const { data, error, loading, reload } = useLoad(() => api.audit(100));
+  const { data, error, loading, reload } = useLoad(() => api.audit(100).then((r) => ({ entries: mergeAuditEntries(r.entries) })));
   const open = params.get('open');
   const setOpen = (id: string | null) => setParams(id ? { open: id } : {});
   return (
     <>
       <PageHead title="Audit trail" intro="Every AI request made by your organisation: who asked, which documents were searched, and what came back after the quotes were checked."
         actions={<button className="button" onClick={() => void reload()}>Refresh</button>} />
+      <DemoNotice />
       {open && <Record id={open} onClose={() => setOpen(null)} />}
       {error && <ErrorNote>{error}</ErrorNote>}
       <section>
         {loading && !data && <p className="muted">Loading…</p>}
-        {data && data.entries.length === 0 && <Empty title="No AI requests yet">Questions, checklists, change explanations and gap checks will be recorded here.</Empty>}
+        {data && data.entries.length === 0 && <Empty title="No AI requests yet">Questions, checklists, change explanations and gap checks will appear here once you run them.</Empty>}
         {data && data.entries.length > 0 && (
           <div className="table-wrap"><table className="table">
             <thead><tr><th>When</th><th>Request</th><th>By</th><th>Outcome</th><th>Reference</th></tr></thead>

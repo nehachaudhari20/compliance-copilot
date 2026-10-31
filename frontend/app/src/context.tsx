@@ -1,6 +1,7 @@
 import { createContext, useContext, useMemo, useState, type ReactNode } from 'react';
 import { useLoad } from './hooks';
 import { api, type Library, type LibraryDocument } from './lib/api';
+import { mergeDocuments } from './lib/demo';
 import { groupFamilies, type Family } from './lib/library';
 
 interface LibraryContextValue {
@@ -17,8 +18,9 @@ const LibraryContext = createContext<LibraryContextValue | null>(null);
 export function LibraryProvider({ children }: { children: ReactNode }) {
   const { data, error, loading, reload } = useLoad(api.library);
   const value = useMemo(() => {
-    const documents = data?.documents ?? [];
-    return { library: data, families: groupFamilies(documents), byId: new Map(documents.map((d) => [d.id, d])), loading, error, reload };
+    const documents = mergeDocuments(data?.documents ?? []);
+    const library: Library | null = data ? { ...data, documents } : null;
+    return { library, families: groupFamilies(documents), byId: new Map(documents.map((d) => [d.id, d])), loading, error, reload };
   }, [data, error, loading, reload]);
   return <LibraryContext.Provider value={value}>{children}</LibraryContext.Provider>;
 }

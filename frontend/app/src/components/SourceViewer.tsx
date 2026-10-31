@@ -4,6 +4,7 @@ import type { PDFDocumentProxy, PDFPageProxy, RenderTask } from 'pdfjs-dist';
 import type { TextItem } from 'pdfjs-dist/types/src/display/api';
 import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import { api } from '../lib/api';
+import { isDemoId } from '../lib/demo';
 import { locateQuote, markQuote } from '../lib/quote';
 import { useLibrary, useSource, type SourceTarget } from '../context';
 import { ErrorNote } from './ui';
@@ -181,7 +182,9 @@ export function SourcePane() {
         )}
       </div>
       <div className="source-body">
-        {isHtml ? <TextSource target={target} /> : <PdfPage key={target.documentId} target={target} onPageCount={setPages} />}
+        {isDemoId(target.documentId) ? (
+          <p className="notice info">This is a sample document for layout preview. Upload a PDF in the Library to open real source pages here.</p>
+        ) : isHtml ? <TextSource target={target} /> : <PdfPage key={target.documentId} target={target} onPageCount={setPages} />}
       </div>
     </aside>
   );

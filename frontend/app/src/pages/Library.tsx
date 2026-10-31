@@ -4,6 +4,8 @@ import { useLibrary, useSource } from '../context';
 import { api, type IndexJob, type LibraryDocument } from '../lib/api';
 import { formatDate, joinableFamilies, versionName, type Family } from '../lib/library';
 import { useSignedIn } from '../session';
+import { DemoNotice } from '../components/DemoNotice';
+import { formatIndexMessage, hasUploadedDocuments, isDemoId } from '../lib/demo';
 import { Empty, ErrorNote, IndexBadge, PageHead, VisibilityBadge } from '../components/ui';
 
 type Scope = 'all' | 'regulatory' | 'internal';
@@ -29,7 +31,9 @@ function IndexBanner() {
     return () => clearTimeout(timer);
   }, [job, reload]);
 
-  if (!library || (library.index.state === 'ready' && job?.state !== 'running')) return null;
+  const uploaded = hasUploadedDocuments(library?.documents ?? []);
+  if (!library || !uploaded || (library.index.state === 'ready' && job?.state !== 'running')) return null;
+  const indexNote = formatIndexMessage(library.index.message);
   const start = async () => {
     setError('');
     try {
@@ -42,10 +46,10 @@ function IndexBanner() {
     <div className="notice warn" style={{ marginBottom: 16, alignItems: 'center' }}>
       <div className="grow">
         {job?.state === 'running'
-          ? 'Indexing documents for search and AI. Large documents take several minutes on a laptop.'
+          ? 'Indexing your uploads for search and AI. Large documents take several minutes on a laptop.'
           : library.index.state === 'pending'
-            ? `${library.index.message}. They can be browsed now but not used for answers yet.`
-            : 'The search index has not been built yet, so documents cannot be used for answers.'}
+            ? indexNote ?? 'Some of your uploads are still waiting to be indexed.'
+            : indexNote ?? 'Build the search index before your uploads can be used for live answers.'}
         {!session.isAdmin && ' An administrator can index them.'}
         {error && <div style={{ marginTop: 6, color: 'var(--bad)' }}>{error}</div>}
       </div>
@@ -181,6 +185,7 @@ function FamilyRow({ family, expanded, onToggle }: { family: Family; expanded: b
             <span>{family.versions.length} version{family.versions.length > 1 ? 's' : ''}</span>
             <span>latest: {versionName(latest)}</span>
             <VisibilityBadge doc={latest} />
+            {family.versions.some((v) => isDemoId(v.id)) && <span className="badge dashed">Sample</span>}
             {family.versions.some((v) => !v.indexed) && <span className="badge warn"><span className="dot" />Not all indexed</span>}
           </div>
         </div>
@@ -200,7 +205,7 @@ function FamilyRow({ family, expanded, onToggle }: { family: Family; expanded: b
                   <td><IndexBadge doc={v} /></td>
                   <td>
                     <div className="row" style={{ gap: 4, justifyContent: 'flex-end' }}>
-                      <button className="button small" onClick={() => open({ documentId: v.id, page: 1 })}>Read</button>
+                      <button className="button small" disabled={isDemoId(v.id)} title={isDemoId(v.id) ? 'Sample document — upload a PDF to read source pages' : undefined} onClick={() => open({ documentId: v.id, page: 1 })}>Read</button>
                       {v.indexed && family.kind === 'regulatory' && <Link className="button small" to={`/ask?doc=${v.id}`}>Ask</Link>}
                     </div>
                   </td>
@@ -232,6 +237,7 @@ export function Library() {
     <>
       <PageHead title="Library" intro="Regulations and your internal policies, with every version kept. Documents must be indexed before they can be used for answers."
         actions={<button className="button primary" onClick={() => setUploading(true)}>Upload document</button>} />
+      <DemoNotice />
       <IndexBanner />
       {message && <div className="notice info" style={{ marginBottom: 16 }}>{message}</div>}
       {error && <ErrorNote>{error}</ErrorNote>}
@@ -246,7 +252,7 @@ export function Library() {
         </div>
         {loading && !families.length && <p className="muted">Loading the library…</p>}
         {!loading && !families.length && (
-          <Empty title="The library is empty">Upload an RBI or SEBI document, or one of your internal policies, to get started.</Empty>
+          <Empty title="No uploaded documents yet">Sample entries appear above once loaded. Upload an RBI or SEBI PDF, or an internal policy, to add your own.</Empty>
         )}
         {families.length > 0 && !shown.length && <Empty title="No matches">Try a different title or show all documents.</Empty>}
         {shown.map((family) => (

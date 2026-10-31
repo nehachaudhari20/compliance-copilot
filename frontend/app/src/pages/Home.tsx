@@ -7,6 +7,8 @@ import { markPhrases } from '../lib/quote';
 import { formatDateTime, versionName } from '../lib/library';
 import { useSignedIn } from '../session';
 import { ErrorNote } from '../components/ui';
+import { DemoNotice } from '../components/DemoNotice';
+import { mergeAuditEntries, realDocIds } from '../lib/demo';
 import { defaultRegulations } from './Ask';
 
 const EXAMPLES = [
@@ -18,12 +20,13 @@ const EXAMPLES = [
 /** The latest finished entries of each kind, with full results for the two the page shows. */
 async function loadRecent() {
   const { entries } = await api.audit(40);
-  const done = entries.filter((e) => e.status === 'completed');
+  const done = mergeAuditEntries(entries).filter((e) => e.status === 'completed');
   const lastAnswer = done.find((e) => e.task === 'qa');
   const lastGap = done.find((e) => e.task === 'gap_analysis');
+  const { getDemoAuditEntry, isDemoAuditId } = await import('../lib/demo');
   const [answer, gap] = await Promise.all([
-    lastAnswer ? api.auditEntry(lastAnswer.id) : null,
-    lastGap ? api.auditEntry(lastGap.id) : null,
+    lastAnswer ? (isDemoAuditId(lastAnswer.id) ? getDemoAuditEntry(lastAnswer.id) : api.auditEntry(lastAnswer.id)) : null,
+    lastGap ? (isDemoAuditId(lastGap.id) ? getDemoAuditEntry(lastGap.id) : api.auditEntry(lastGap.id)) : null,
   ]);
   return { answer, gap };
 }
@@ -60,13 +63,18 @@ export function Home() {
   const comparable = families.find((f) => f.kind === 'regulatory' && f.versions.length > 1);
   const gapSummary = recent.data?.gap?.result?.gap_summary;
   const scope = defaultRegulations(families);
+  const liveScope = realDocIds(scope);
 
   const ask = async (text: string) => {
-    if (!text.trim() || !scope.length) return;
+    const liveScope = realDocIds(scope);
+    if (!text.trim() || !liveScope.length) {
+      if (text.trim() && scope.length) setError('Sample documents are preview-only. Upload and index your own regulations in the Library to ask live questions.');
+      return;
+    }
     setBusy(true);
     setError('');
     try {
-      const job = await api.startJob('qa', text.trim(), scope);
+      const job = await api.startJob('qa', text.trim(), liveScope);
       rememberJob('ask', job.id);
       navigate('/ask');
     } catch (exc) {
@@ -81,25 +89,28 @@ export function Home() {
 
   return (
     <>
+      <DemoNotice />
       <section className="hero" aria-labelledby="hello">
         <h1 id="hello">What do you need to check, {session.name.split(' ')[0]}?</h1>
         <form className="askbar large" onSubmit={submit}>
           <label htmlFor="home-q" className="visually-hidden">Ask about a regulation</label>
           <input id="home-q" value={question} onChange={(e) => setQuestion(e.target.value)} placeholder="Ask about RBI or SEBI regulation…" maxLength={4000} />
-          <button className="button primary" type="submit" disabled={busy || !question.trim() || !scope.length}>{busy ? 'Asking…' : 'Ask'}</button>
+          <button className="button primary" type="submit" disabled={busy || !question.trim() || !liveScope.length}>{busy ? 'Asking…' : 'Ask'}</button>
         </form>
         <div className="chips">
           <span className="label">Try</span>
           {EXAMPLES.map((example) => (
-            <button key={example} type="button" className="chip" disabled={busy || !scope.length} onClick={() => { setQuestion(example); void ask(example); }}>{example}</button>
+            <button key={example} type="button" className="chip" disabled={busy || !liveScope.length} onClick={() => { setQuestion(example); void ask(example); }}>{example}</button>
           ))}
         </div>
         {error && <ErrorNote>{error}</ErrorNote>}
         <p className="status-line">
-          <span className={`dot${scope.length ? '' : ' wait'}`} aria-hidden="true" />
-          {scope.length
-            ? `Searching ${scope.length} ready regulation${scope.length > 1 ? 's' : ''} · every answer is checked against its source page`
-            : 'No regulation is ready yet. Upload one in the Library and index it.'}
+          <span className={`dot${liveScope.length ? '' : ' wait'}`} aria-hidden="true" />
+          {liveScope.length
+            ? `Searching ${liveScope.length} indexed regulation${liveScope.length > 1 ? 's' : ''} · every answer is checked against its source page`
+            : scope.length
+              ? 'Sample regulations are shown for preview. Upload and index your own in the Library for live answers.'
+              : 'No regulation is ready yet. Upload one in the Library and index it.'}
         </p>
       </section>
 

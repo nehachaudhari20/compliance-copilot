@@ -1,7 +1,9 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { useLibrary } from '../context';
 import { useJob } from '../hooks';
+import { DemoNotice } from '../components/DemoNotice';
 import { api, type AIResult, type ResultItem } from '../lib/api';
+import { DEMO_GAP_RESULT, realDocIds } from '../lib/demo';
 import { versionName } from '../lib/library';
 import { Details, JobOutcome, KeyQuote, usePlace } from '../components/Results';
 import { Empty, ErrorNote } from '../components/ui';
@@ -139,10 +141,15 @@ export function Gaps() {
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
+    const live = realDocIds([regulation, policy]);
+    if (live.length < 2) {
+      setError('Sample documents are preview-only. Upload and index your policy and regulation to run a live gap check.');
+      return;
+    }
     try {
       start(await api.startJob('gap_analysis',
         focus.trim() || 'Assess whether the internal policy meets the requirements of the regulation, requirement by requirement.',
-        [regulation, policy]));
+        live));
       setEditing(false);
     } catch (exc) {
       setError(exc instanceof Error ? exc.message : String(exc));
@@ -167,6 +174,7 @@ export function Gaps() {
 
   return (
     <>
+      <DemoNotice />
       {editing || !job ? (
         <form className="stack" style={{ gap: 16 }} onSubmit={submit}>
           <div className="page-head">
@@ -204,6 +212,13 @@ export function Gaps() {
         </p>
       )}
       <JobOutcome job={job} onDismiss={() => { forget(); setEditing(true); }}>{(result) => <GapResult result={result} />}</JobOutcome>
+
+      {!job && (
+        <section className="stack" style={{ gap: 12, marginTop: 36 }} aria-label="Sample gap check">
+          <div className="section-head"><h2>Sample gap check (preview)</h2></div>
+          <GapResult result={DEMO_GAP_RESULT} />
+        </section>
+      )}
     </>
   );
 }

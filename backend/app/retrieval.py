@@ -45,7 +45,7 @@ class LocalEmbedder:
     def identity(self):
         marker = self.path / 'copilot-model.json'
         if not marker.exists():
-            raise RetrievalError('Embedding model missing. Run: .venv/bin/python -m backend.app.index_cli download-model')
+            raise RetrievalError('Embedding model missing. Run: python -m backend.app.index_cli download-model')
         try:
             identity = json.loads(marker.read_text())
             if not identity.get('revision') or not identity.get('model'):

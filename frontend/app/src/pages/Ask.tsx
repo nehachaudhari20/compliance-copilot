@@ -2,7 +2,9 @@ import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useLibrary } from '../context';
 import { useJob } from '../hooks';
+import { DemoNotice } from '../components/DemoNotice';
 import { api } from '../lib/api';
+import { DEMO_QA_RESULT, realDocIds } from '../lib/demo';
 import { DocumentPicker } from '../components/DocumentPicker';
 import { AnswerView, JobOutcome } from '../components/Results';
 import { Empty, ErrorNote } from '../components/ui';
@@ -50,9 +52,14 @@ export function Ask() {
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
+    const live = realDocIds(selected);
+    if (!live.length) {
+      setError('Sample documents are preview-only. Upload and index your own regulations to run a live question.');
+      return;
+    }
     try {
       setChoosing(false);
-      start(await api.startJob(mode, question.trim(), selected));
+      start(await api.startJob(mode, question.trim(), live));
     } catch (exc) {
       setError(exc instanceof Error ? exc.message : String(exc));
     }
@@ -64,6 +71,7 @@ export function Ask() {
 
   return (
     <>
+      <DemoNotice />
       <form className="stack" style={{ gap: 12, maxWidth: 940 }} onSubmit={submit}>
         <div className="askbar">
           <label htmlFor="question" className="visually-hidden">{mode === 'qa' ? 'Your question' : 'What the checklist should cover'}</label>
@@ -99,6 +107,13 @@ export function Ask() {
           ? <AnswerView result={result} label="Action checklist" rowsHeading="Actions, with the words that require them" />
           : <AnswerView result={result} label="Answer" />}
       </JobOutcome>
+
+      {!job && (
+        <section className="stack" style={{ gap: 12, marginTop: 36 }} aria-label="Sample answer">
+          <div className="section-head"><h2>Sample answer (preview)</h2></div>
+          <AnswerView result={DEMO_QA_RESULT} label="Answer" />
+        </section>
+      )}
     </>
   );
 }

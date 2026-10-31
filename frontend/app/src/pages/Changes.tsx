@@ -2,7 +2,9 @@ import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useLibrary, useSource } from '../context';
 import { useJob } from '../hooks';
+import { DemoNotice } from '../components/DemoNotice';
 import { api, type Change, type Comparison } from '../lib/api';
+import { DEMO_COMPARISON, demoComparison, realDocIds } from '../lib/demo';
 import { formatDate, versionName } from '../lib/library';
 import { AnswerView, JobOutcome } from '../components/Results';
 import { Empty, ErrorNote, PageHead } from '../components/ui';
@@ -72,6 +74,11 @@ export function Changes() {
     setLoading(true);
     setError('');
     try {
+      const preview = demoComparison(olderId, newerId);
+      if (preview) {
+        setResult(preview);
+        return;
+      }
       setResult(await api.compare(olderId, newerId));
     } catch (exc) {
       setError(exc instanceof Error ? exc.message : String(exc));
@@ -80,12 +87,23 @@ export function Changes() {
     }
   };
 
+  useEffect(() => {
+    if (familyId !== DEMO_COMPARISON.older.family_id || result) return;
+    setResult(DEMO_COMPARISON);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [familyId]);
+
   const explainChanges = async () => {
     if (!result) return;
     try {
+      const ids = realDocIds([result.older.id, result.newer.id]);
+      if (ids.length < 2) {
+        explain.setError('Sample comparison only. Upload both versions to generate a live explanation.');
+        return;
+      }
       explain.start(await api.startJob('comparison',
         'Summarise what changed between these two versions and what a compliance team must do differently as a result.',
-        [result.older.id, result.newer.id]));
+        ids));
     } catch (exc) {
       explain.setError(exc instanceof Error ? exc.message : String(exc));
     }
@@ -109,6 +127,7 @@ export function Changes() {
   return (
     <>
       <PageHead title="Change detection" intro="Line up two versions of a regulation and review every passage that was added, removed or modified, page by page." />
+      <DemoNotice />
       <section className="stack" style={{ gap: 14, maxWidth: 940 }}>
         <label className="field">
           <span>Document</span>
